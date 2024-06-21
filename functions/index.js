@@ -1,4 +1,11 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const getCoduckResp = require("./getCoduckResp");
+const cors = require('cors');
+const getCoduckRespHandler = require("./getCoduckResp");
 
-exports.getCoduckResp = getCoduckResp.getCoduckResp;
+const corsHandler = cors({ origin: true });
+
+exports.getCoduckResp = onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    await getCoduckRespHandler.getCoduckResp(req, res);
+  });
+});
