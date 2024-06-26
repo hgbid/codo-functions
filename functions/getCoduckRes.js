@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const { default: OpenAI } = require('openai');
 const dotenv = require('dotenv');
+const { translate } = require('@vitalets/google-translate-api');
 
 dotenv.config();
 
@@ -13,10 +14,9 @@ const openai = new OpenAI({
 exports.getCoduckRes = functions.https.onRequest(async (req, res) => {
   const { chatMessages, code, task } = req.body;
 
-  if (!chatMessages || !code ) {
+  if (!chatMessages || !code) {
     return res.status(400).send({ error: 'chatMessages and code are required' });
   }
-
   const systemPrompt = {
     role: "system",
     content: `
@@ -72,29 +72,41 @@ The current student code is: \`\`\`${code}\`\`\`
     `
   };
 
-  const formattedChatMessages = chatMessages.map(message => ({
-    role: message.writer === 'user' ? 'user' : 'assistant',
-    content: message.message,
+  let userEnMessage = '';
+  const formattedChatMessages = await Promise.all(chatMessages.map(async (message, index) => {
+    if (message.role === 'user' && index === chatMessages.length - 1) {
+      const translatedMessage = await translate(message.hebMessage, { from: 'iw', to: 'en' });
+      message.enMessage = translatedMessage.text;
+      userEnMessage = translatedMessage.text;
+    }
+    return {
+      role: message.role,
+      content: message.role === 'user' ? message.enMessage : message.hebMessage,
+    };
   }));
 
   const messages = [systemPrompt, ...formattedChatMessages];
-  console.log(systemPrompt);
-  console.log(formattedChatMessages);
+
   try {
     const response = await openai.chat.completions.create({
-      // model: "gpt-3.5-turbo",
-      model: "gpt-4o",
+      model: "gpt-4",
       messages: messages,
     });
-    res.status(200).send(response.choices);
+
+    const openaiResponse = response.choices[0].message.content;
+    // const translatedResponse = await translate(openaiResponse, { from: 'en', to: 'iw' });
+
+    res.status(200).send({
+      userEnMessage: userEnMessage,
+      hebMessage: openaiResponse,
+      enMessage: openaiResponse,
+    });
 
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
     res.status(500).send({ error: 'Error calling OpenAI API' });
   }
 });
-
-
 
 const mokedRes = {
   "id": "chatcmpl-9cXZt6H8jqO7TH4MWeEplQZegkXyJ",

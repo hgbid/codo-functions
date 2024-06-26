@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@vitalets/google-translate-api": "^9.2.0",
+    "google-translate-api": "^2.3.0"
+  }
+}
