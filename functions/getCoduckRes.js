@@ -1,7 +1,30 @@
 const functions = require('firebase-functions');
 const { default: OpenAI } = require('openai');
 const dotenv = require('dotenv');
-const { translate } = require('@vitalets/google-translate-api');
+// const { translate } = require('@vitalets/google-translate-api');
+
+async function translate(text, langs) {
+    const openai_res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+            role: "system",
+            content: `
+You need to translate the message from ${langs.from} to ${langs.to}. It's part of a mentor-student conversation
+on a Python coding assignment, so don't translate from English Python keywords or strings that seem part of the
+assigment. Reply with the translation only, or with the original text if no translation is necessary.
+Use relatively informal language.
+`,
+        },
+        {
+            role: "user",
+            content: text
+        }
+      ],
+    });
+
+    return {text: openai_res.choices[0].message.content};
+}
 
 dotenv.config();
 
@@ -14,9 +37,6 @@ const openai = new OpenAI({
 exports.getCoduckRes = functions.https.onRequest(async (req, res) => {
   const { chatMessages, code, task } = req.body;
 
-  if (!chatMessages || !code) {
-    return res.status(400).send({ error: 'chatMessages and code are required' });
-  }
   const systemPrompt = {
     role: "system",
     content: `
@@ -67,38 +87,45 @@ This is the task the student is currently working on:
 In a multi-story building, there are two elevators - Elevator A and Elevator B. The elevators are on different floors. When a person calls for an elevator, the closest elevator will arrive.
 
 Read from the user the floor on which Elevator A is located, and the floor on which Elevator B is located. Then, read the floor on which Alice is located. Print the name of the elevator that is closest to Alice - A or B. If both elevators are equally close, print either one (both choices are correct).
-
-The current student code is: \`\`\`${code}\`\`\`
     `
   };
 
   let userEnMessage = '';
   const formattedChatMessages = await Promise.all(chatMessages.map(async (message, index) => {
-    if (message.role === 'user' && index === chatMessages.length - 1) {
-      const translatedMessage = await translate(message.hebMessage, { from: 'iw', to: 'en' });
+    if (message.role === 'user' && (message.enMessage !== undefined || message.enMessage.length == 0)) {
+      const translatedMessage = await translate(message.hebMessage, { from: 'Hebrew', to: 'English' });
       message.enMessage = translatedMessage.text;
       userEnMessage = translatedMessage.text;
     }
-    return {
+    const res = {
       role: message.role,
-      content: message.role === 'user' ? message.enMessage : message.hebMessage,
+      // content: message.role === 'user' ? message.enMessage : message.hebMessage,
+      content: message.enMessage,
     };
+
+    if (message.code !== null && message.code !== undefined) {
+        res.content += `\n\nThis is my current code:\n\`\`\`${message.code}\`\`\``
+    }
+
+    return res;
   }));
 
   const messages = [systemPrompt, ...formattedChatMessages];
 
+  console.log(formattedChatMessages);
+
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: messages,
     });
 
     const openaiResponse = response.choices[0].message.content;
-    // const translatedResponse = await translate(openaiResponse, { from: 'en', to: 'iw' });
+    const translatedResponse = await translate(openaiResponse, { from: 'English', to: 'Hebrew' });
 
     res.status(200).send({
       userEnMessage: userEnMessage,
-      hebMessage: openaiResponse,
+      hebMessage: translatedResponse.text,
       enMessage: openaiResponse,
     });
 
