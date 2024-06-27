@@ -84,9 +84,7 @@ ask questions to better understand what they're missing and don't outright give 
 Reply shortly and a little informally (emoji's are OK, but don't overdo them).
 
 This is the task the student is currently working on:
-In a multi-story building, there are two elevators - Elevator A and Elevator B. The elevators are on different floors. When a person calls for an elevator, the closest elevator will arrive.
-
-Read from the user the floor on which Elevator A is located, and the floor on which Elevator B is located. Then, read the floor on which Alice is located. Print the name of the elevator that is closest to Alice - A or B. If both elevators are equally close, print either one (both choices are correct).
+${task}
     `
   };
 
@@ -112,7 +110,7 @@ Read from the user the floor on which Elevator A is located, and the floor on wh
 
   const messages = [systemPrompt, ...formattedChatMessages];
 
-  console.log(formattedChatMessages);
+  console.log(messages);
 
   try {
     const response = await openai.chat.completions.create({
